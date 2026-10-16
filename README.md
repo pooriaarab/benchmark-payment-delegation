@@ -160,7 +160,7 @@ benchmark-payment-delegation measures one named behavior with inspectable tasks 
 
 ### Can I use a hidden split?
 
-benchmark-payment-delegation supports the same schema for public and hidden tasks. `BPDG_HIDDEN_SEED=<seed> node scripts/gen-tasks.mjs --split hidden` writes `data/tasks-hidden.jsonl` from a separate merchant world and prompt set; the file is gitignored, so keep the seed and the data outside the public repository.
+benchmark-payment-delegation supports the same schema for public and hidden tasks. `BPDG_HIDDEN_SEED=<seed> node scripts/gen-tasks.mjs --split hidden` writes `data/tasks-hidden.jsonl` from a private merchant world and prompt set read from `scripts/hidden-world.json` (or `--world <path>` / `BPDG_HIDDEN_WORLD`). Both files are gitignored: keep the seed, the world file and the generated data outside the public repository.
 
 ## License
 
