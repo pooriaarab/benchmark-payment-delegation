@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 
 function mulberry32(seed) {
   return function next() {
@@ -497,6 +497,13 @@ if (split === "hidden") {
 // Hidden output lives in gitignored .hidden/, never data/: the package `files`
 // list includes data/, so a hidden file there would be packed and published.
 const out = outPath ?? (split === "hidden" ? ".hidden/tasks-hidden.jsonl" : "data/tasks.jsonl");
+if (split === "hidden") {
+  const rel = relative(process.cwd(), resolve(out));
+  if (rel === "data" || rel.startsWith(`data${sep}`)) {
+    console.error(`hidden output must not land under data/: ${out} would be packed by npm`);
+    process.exit(1);
+  }
+}
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, `${tasks.map((task) => JSON.stringify(task)).join("\n")}\n`);
 console.log(`generated ${tasks.length} tasks to ${out} (seed=${seed}, split=${split})`);
