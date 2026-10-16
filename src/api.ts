@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createHandler, serve, type Benchmark, type Task } from "benchmark-core";
 import { createBenchmark, publicTask } from "./benchmark.js";
 
@@ -12,12 +13,16 @@ const envTasksPath = (): string[] | undefined => {
   return allowed?.length ? allowed : undefined;
 };
 
+const digest = (value: string) => createHash("sha256").update(value).digest();
+const tokenMatches = (header: string | null, token: string) =>
+  timingSafeEqual(digest(header ?? ""), digest(`Bearer ${token}`));
+
 const apiToken = () => process.env.BPDG_API_TOKEN || undefined;
 
 export function createApiHandler(active: Benchmark, token = apiToken()) {
   const inner = createHandler(active);
   return async (request: Request): Promise<Response> => {
-    if (token !== undefined && request.headers.get("authorization") !== `Bearer ${token}`) {
+    if (token !== undefined && !tokenMatches(request.headers.get("authorization"), token)) {
       return Response.json(
         { error: { code: "UNAUTHORIZED", message: "Set Authorization: Bearer <BPDG_API_TOKEN>." } },
         { status: 401 },
