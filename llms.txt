@@ -1,19 +1,22 @@
 # benchmark-payment-delegation
 
-> Spend limits, merchant allowlists and disputes for an agent with a card.
+> Ledger policy benchmark: spending caps, merchant allowlists, refunds, and disputes for a delegated card agent.
 
 Package: https://www.npmjs.com/package/benchmark-payment-delegation
 Repository: https://github.com/pooriaarab/benchmark-payment-delegation
 Directory: https://aibenchmarkindex.com/benchmarks/benchmark-payment-delegation
 
-## Exports
+## Tasks
 
-The root exports `benchmark`, `run`, and `score`. `benchmark-payment-delegation/api` exports the fetch-style `handler`. `benchmark-payment-delegation/mcp` exports MCP builders.
+40 episode tasks. Tools: get_balance, search_merchants, purchase, refund, dispute, ask_owner.
+Generate: `node scripts/gen-tasks.mjs --seed 20261015` (public) or `--split hidden` for evaluation-only tasks.
+
+## Grading
+
+Deterministic ledger replay. See docs/grading.md. No LLM judge.
 
 ## Commands
 
-The CLI supports list, show, run, score, card, provenance, index-entry, serve, and mcp. Use the mock provider for offline verification.
-
-## Verification
-
-Run `npm run ci:local`. The report is `artifacts/e2e-report.json`.
+CLI: list, show, run, score, card, provenance, index-entry, serve, mcp.
+Offline: `npx benchmark-payment-delegation run --provider mock --model offline`
+Gate: `npm run ci:local` → artifacts/e2e-report.json
