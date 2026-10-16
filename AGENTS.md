@@ -12,7 +12,7 @@
 
 Keep tasks, deterministic grading, and provenance in sync. Episode environments must be seeded. Grade episode traces by replaying their tool log.
 
-Hidden tasks generate into gitignored `.hidden/`, never `data/` (the package `files` list includes `data/`). Run them with CLI `--tasks <path>`, the SDK `tasksPath` option, or the `BPDG_TASKS_PATH` colon-separated allow-list on `serve` and `mcp`.
+Hidden tasks generate into gitignored `.hidden/`, never `data/` (the package `files` list includes `data/`). Run them with CLI `--tasks <path>`, the SDK `tasksPath` option, or the `BPDG_TASKS_PATH` colon-separated allow-list on `serve` and `mcp`. Set `BPDG_API_TOKEN` on `serve` and the `api` handler to require a bearer token; task listings never expose grading input or mock scripts.
 
 Never read provider keys from repository files. OpenRouter uses `OPENROUTER_API_KEY`. OpenAI-compatible providers use `OPENAI_BASE_URL` and `OPENAI_API_KEY`.
 
