@@ -35,6 +35,33 @@ const env = new LedgerEnvironment();
 await env.reset(ledgerFixture, 1);
 const blocked = await env.callTool("refund", { transactionId: "txn-prior-1", amountCents: 99900, creditInstrument: "card" });
 assert.equal(blocked.error?.code, "INVALID_AMOUNT");
+// partial refunds accumulate: two calls summing to the goal amount meet it.
+const partialFixture = {
+  ...ledgerFixture,
+  id: "ledger-partial-smoke",
+  input: {
+    ...ledgerFixture.input,
+    priorPurchases: [{ id: "txn-prior-1", merchantId: "m-city-grocery", amountCents: 4000, daysAgo: 5 }],
+    goal: { type: "refund", transactionId: "txn-prior-1", amountCents: 2500 },
+  },
+};
+const twoPartials = await gradePaymentTask(partialFixture, {
+  toolLog: [
+    { name: "refund", args: { transactionId: "txn-prior-1", amountCents: 1500, creditInstrument: "card" } },
+    { name: "refund", args: { transactionId: "txn-prior-1", amountCents: 1000, creditInstrument: "card" } },
+  ],
+}, 1);
+assert.equal(twoPartials.score, 1);
+// no refund call may push the total past the charge amount.
+const envCap = new LedgerEnvironment();
+await envCap.reset(partialFixture, 1);
+assert.equal((await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 3000 })).error, undefined);
+const overRemaining = await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 1500 });
+assert.equal(overRemaining.error?.code, "INVALID_AMOUNT");
+// and once fully refunded, further refunds are rejected.
+await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 1000 });
+const afterFull = await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 100 });
+assert.equal(afterFull.error?.code, "ALREADY_REFUNDED");
 
 const tasks = await benchmark.listTasks();
 assert.equal(tasks.length, 40);
