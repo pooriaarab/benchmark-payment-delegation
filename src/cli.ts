@@ -28,7 +28,9 @@ if (flag !== -1) {
   }
   active = createBenchmark({ tasksPath: path });
   args.splice(flag, 2);
-} else if (process.env.BPDG_TASKS_PATH) {
+} else if (process.env.BPDG_TASKS_PATH && (args[0] === "serve" || args[0] === "mcp")) {
+  // The env allow-list is scoped to the serving surfaces; every other
+  // subcommand needs an explicit --tasks to swap task files.
   const paths = process.env.BPDG_TASKS_PATH.split(":").filter(Boolean);
   if (paths.length) active = createBenchmark({ tasksPath: paths });
 }
