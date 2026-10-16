@@ -39,6 +39,25 @@ assert.equal(blocked.error?.code, "INVALID_AMOUNT");
 const tasks = await benchmark.listTasks();
 assert.equal(tasks.length, 40);
 assert.ok(new Set(tasks.map((t) => t.metadata?.scenario)).size >= 20, "need at least 20 distinct scenarios");
+// The solver sees only the environment system text, the tool specs and
+// task.prompt: the system text is a pure function of the policy and never
+// leaks goals, criteria or mock scripts.
+const systemByPolicy = new Map();
+for (const task of tasks) {
+  const visible = await new LedgerEnvironment().reset(task, 11);
+  const policyKey = JSON.stringify(task.input.policy);
+  const earlier = systemByPolicy.get(policyKey);
+  if (earlier === undefined) systemByPolicy.set(policyKey, visible.system);
+  else assert.equal(visible.system, earlier, `system text for ${task.id} must depend on the policy alone`);
+  assert.deepEqual(
+    visible.tools.map((tool) => tool.name),
+    ["get_balance", "search_merchants", "purchase", "refund", "dispute", "ask_owner"],
+  );
+  for (const leak of ["mockGood", "mockBad", "requireGoalMet", "requireOwnerAsk", "requireNoPurchase", "maxPolicyViolations", "disputeMustBeCorrect"]) {
+    assert.ok(!visible.system.includes(leak), `system text leaks ${leak}`);
+    assert.ok(!task.prompt.includes(leak), `prompt leaks ${leak}`);
+  }
+}
 // A sealed hidden split: generate one in a temp dir from a private world file
 // and assert it shares no prompts or merchants with the public split. The
 // generator must also fail loudly without a world file or a seed.
@@ -172,7 +191,17 @@ const badPolicies = {
 };
 const meanOf = (scores) => scores.reduce((sum, score) => sum + score, 0) / scores.length;
 const goodScores = [];
-for (const task of tasks) goodScores.push((await benchmark.score(task, submissionFromScript(task, "mockGood"))).score);
+const perKind = {};
+for (const task of tasks) {
+  const solved = (await benchmark.score(task, submissionFromScript(task, "mockGood"))).score === 1;
+  goodScores.push(solved ? 1 : 0);
+  const kind = task.metadata?.scenario ?? "unknown";
+  const entry = perKind[kind] ?? { solved: 0, total: 0 };
+  entry.total += 1;
+  if (solved) entry.solved += 1;
+  perKind[kind] = entry;
+}
+const kindReport = Object.fromEntries(Object.entries(perKind).map(([kind, entry]) => [kind, `${entry.solved}/${entry.total}`]));
 const goodMean = meanOf(goodScores);
 assert.equal(goodMean, 1, `good policy must score 1.000 on every task, got ${goodMean}`);
 for (const [name, policy] of Object.entries(badPolicies)) {
@@ -382,6 +411,13 @@ assert.ok(report.rows.some((row) => row.score === 1));
 assert.ok(report.rows.some((row) => row.score === 0));
 const mean = report.mean;
 assert.ok(mean > 0.2 && mean < 0.8, `mock mean should mix pass/fail, got ${mean}`);
+// grader details reach every report row and the totals block.
+assert.ok(report.totals.grader, "run report must carry totals.grader");
+assert.ok(report.rows.every((row) => row.details && typeof row.details.goalMet === "boolean"));
+assert.equal(report.totals.grader.policyViolations, report.rows.reduce((sum, row) => sum + (row.details.policyViolations ?? 0), 0));
+assert.equal(report.totals.grader.goalMet.applicable, report.rows.length);
+const cliText = (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock"], { maxBuffer: 5_000_000 })).stdout;
+assert.match(cliText, /Grader details: policyViolations \d+; goalMet \d+\/\d+; askedOwnerWhenNeeded \d+\/\d+; disputeHandledCorrectly \d+\/\d+; declineCommunicated \d+\/\d+/);
 
 // --tasks swaps the task file for list, run and score.
 const hiddenList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
@@ -397,6 +433,8 @@ await writeFile(hiddenReportPath, JSON.stringify(hiddenCliRun));
 const rescore = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "score", hiddenReportPath, "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
 assert.equal(rescore.rows.length, 40);
 assert.ok(rescore.rows.every((row) => row.taskId.startsWith("hidden-")));
+assert.ok(rescore.totals.grader, "score output must carry totals.grader");
+assert.ok(rescore.rows.every((row) => row.details && typeof row.details.goalMet === "boolean"));
 
 const probe = createNetServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
@@ -450,6 +488,11 @@ try {
   for (const [name, args] of calls) {
     const result = await client.callTool({ name, arguments: args });
     if (name === "run_benchmark") assert.equal(result.isError, true); else assert.notEqual(result.isError, true);
+    if (name === "score_answer") {
+      const payload = JSON.parse(result.content[0].text);
+      assert.equal(typeof payload.details?.policyViolations, "number", "score_answer must return grader details");
+      assert.equal(typeof payload.details?.goalMet, "boolean");
+    }
   }
 } finally { await client.close(); }
 
@@ -469,8 +512,9 @@ try {
 } finally { await hiddenClient.close(); }
 await rm(tmp, { recursive: true, force: true });
 
-const artifact = { task_count: report.rows.length, scores: report.rows.map((row) => row.score), route_status_codes: routes, tool_names: toolNames };
+const artifact = { task_count: report.rows.length, scores: report.rows.map((row) => row.score), solved_per_kind: kindReport, route_status_codes: routes, tool_names: toolNames };
 await mkdir("artifacts", { recursive: true });
 await writeFile("artifacts/e2e-report.json", `${JSON.stringify(artifact, null, 2)}\n`);
 assert.match(await readFile("data/PROVENANCE.md", "utf8"), /Synthetic payment delegation scenarios/);
 console.log(`e2e: ledger refund smoke ok, ${artifact.task_count} tasks + ${hidden.length} hidden (no overlap), ${Object.keys(routes).length} routes, ${toolNames.length} tools -> all surfaces passed, ok`);
+console.log(`e2e: good mock solved per scenario kind: ${JSON.stringify(kindReport)}`);
