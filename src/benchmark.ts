@@ -43,7 +43,7 @@ export const benchmark = defineBenchmark({
       howToGet: "Run `node scripts/gen-tasks.mjs --seed 20261015` from the repository root.",
       retrievedAt: "2026-10-15T00:00:00.000Z",
       contaminationNotes:
-        "Public split uses seed 20261015. Hidden evaluation tasks use `node scripts/gen-tasks.mjs --seed 20261015 --split hidden` and are not committed.",
+        "Public split uses seed 20261015. Hidden tasks use a separate unpublished world and templates: `BPDG_HIDDEN_SEED=<seed> node scripts/gen-tasks.mjs --split hidden` writes gitignored data/tasks-hidden.jsonl.",
       refresh: "Edit scenario templates in scripts/gen-tasks.mjs, bump seed, regenerate JSONL, and review diffs.",
     },
     {
