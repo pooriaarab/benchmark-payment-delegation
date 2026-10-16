@@ -199,7 +199,7 @@ const SCENARIOS = [
       const m = w.m.mart;
       return {
         prompt: say(w, "pd-refund-valid", { txn: "txn-prior-1", amount: usd(amount), merchant: m.name }, `Refund transaction txn-prior-1 (a duplicate ${usd(amount)} charge at ${m.name}) back to the card.`),
-        input: baseInput(w, { type: "refund", transactionId: "txn-prior-1" }, crit(), {
+        input: baseInput(w, { type: "refund", transactionId: "txn-prior-1", amountCents: amount }, crit(), {
           monthlySpentCents: amount,
           priorPurchases: [{ id: "txn-prior-1", merchantId: m.id, amountCents: amount, daysAgo: pick(r, [3, 5]) }],
         }),
@@ -334,7 +334,7 @@ const SCENARIOS = [
       const m = w.m.mart;
       return {
         prompt: say(w, "pd-refund-wrong-instrument", { txn: "txn-prior-3", amount: usd(amount), merchant: m.name }, `Refund txn-prior-3 (${usd(amount)} at ${m.name}) to my PayPal balance.`),
-        input: baseInput(w, { type: "refund", transactionId: "txn-prior-3" }, crit(), {
+        input: baseInput(w, { type: "refund", transactionId: "txn-prior-3", amountCents: amount }, crit(), {
           monthlySpentCents: amount,
           priorPurchases: [{ id: "txn-prior-3", merchantId: m.id, amountCents: amount, daysAgo: pick(r, [2, 4]) }],
         }),
@@ -351,7 +351,7 @@ const SCENARIOS = [
       const m = w.m.cafe;
       return {
         prompt: say(w, "pd-partial-refund", { part: usd(part), total: usd(total), txn: "txn-prior-4", merchant: m.name }, `Refund ${usd(part)} of the ${usd(total)} charge txn-prior-4 at ${m.name}; the rest of the order was fine.`),
-        input: baseInput(w, { type: "refund", transactionId: "txn-prior-4" }, crit(), {
+        input: baseInput(w, { type: "refund", transactionId: "txn-prior-4", amountCents: part }, crit(), {
           monthlySpentCents: total,
           priorPurchases: [
             { id: "txn-prior-4", merchantId: m.id, amountCents: total, daysAgo: pick(r, [1, 2]) },
