@@ -36,6 +36,14 @@ assert.equal(blocked.error?.code, "INVALID_AMOUNT");
 const tasks = await benchmark.listTasks();
 assert.equal(tasks.length, 40);
 assert.ok(new Set(tasks.map((t) => t.metadata?.scenario)).size >= 20, "need at least 20 distinct scenarios");
+// a sealed hidden split shares no prompts with the public split.
+try {
+  const hidden = (await readFile(new URL("../data/tasks-hidden.jsonl", import.meta.url), "utf8")).trim().split("\n").map(JSON.parse);
+  const publicPrompts = new Set(tasks.map((t) => t.prompt));
+  assert.ok(hidden.length > 0 && hidden.every((t) => t.metadata?.split === "hidden" && !publicPrompts.has(t.prompt)), "hidden split overlaps the public split");
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+}
 
 const goalOf = (task) => task.input?.goal ?? {};
 const promptAmount = (task) => Number((task.prompt.match(/\$(\d+(?:\.\d+)?)/) ?? [])[1]);
