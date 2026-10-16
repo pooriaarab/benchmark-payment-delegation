@@ -4,21 +4,24 @@
 
 [AI Benchmark Index](https://aibenchmarkindex.com/benchmarks/benchmark-payment-delegation) · [npm](https://www.npmjs.com/package/benchmark-payment-delegation) · [API](#http-api) · [MCP](#model-context-protocol)
 
-benchmark-payment-delegation is an open-source AI model benchmark for commerce tasks. It measures this behavior: Spend limits, merchant allowlists and disputes for an agent with a card.
+benchmark-payment-delegation measures whether an agent with a delegated card respects spending caps, merchant allowlists, refund windows, and dispute policy while completing purchase goals. Companion to [benchmark-checkout-consent](https://github.com/pooriaarab/benchmark-checkout-consent) (explicit checkout consent); this repo focuses on ledger policy, not the consent moment.
 
 ```bash
-npx benchmark-payment-delegation run --model offline --provider mock --json
+npx benchmark-payment-delegation run --provider mock --model offline
 ```
 
-```json
-{"model":"mock:1","mean":0.5,"totals":{"tasks":2,"passed":1,"failed":0}}
+```text
+# Payment Delegation
+- Model: `mock:1`
+- Score: **57.5%**
+- Tasks: 40
 ```
 
-The starter data comes from a committed seeded generator. Seed 20261015 reproduces the public tasks.
+Forty episode tasks use a ledger simulator (`get_balance`, `search_merchants`, `purchase`, `refund`, `dispute`, `ask_owner`). Data is synthetic (CC0 merchants, MIT scenario catalog). Regenerate with `node scripts/gen-tasks.mjs --seed 20261015`. Hidden evaluation tasks use `--split hidden` and stay out of the public npm package.
 
 ## Install
 
-benchmark-payment-delegation requires Node.js 20 or newer.
+Node.js 20+.
 
 ```bash
 npm install benchmark-payment-delegation
@@ -26,63 +29,35 @@ npm install benchmark-payment-delegation
 
 ## Run your first benchmark
 
-The mock provider needs no key or network access.
+Mock provider, no API key:
 
 ```bash
-npx benchmark-payment-delegation run --model offline --provider mock
+npx benchmark-payment-delegation run --provider mock --model offline
 ```
 
-A successful run prints two scored rows and a mean of 0.5.
+## Real models (OpenRouter)
+
+```bash
+export OPENROUTER_API_KEY=your_key
+npx benchmark-payment-delegation run --provider openrouter --model anthropic/claude-sonnet-4
+```
+
+Scores are 0–1 per task (mean plus bootstrap 95% CI). Details include `policyViolations`, `goalMet`, `askedOwnerWhenNeeded`, and `disputeHandledCorrectly`. Any cap or allowlist breach zeros the task. No public leaderboard yet on this box.
 
 ## How it works
 
 ```text
-tasks.jsonl -> model adapter -> deterministic grader -> report
+tasks.jsonl -> model adapter -> ledger replay grader -> report
                          |-> CLI / SDK / MCP / HTTP API
 ```
 
-The runner keeps task order and records score, reason, latency, retries, usage, and cost when available.
+See [docs/grading.md](./docs/grading.md) for failure modes.
 
-## Why it exists
+## Data provenance
 
-General model leaderboards do not isolate commerce behavior. This package keeps the task data, grading rules, and provenance together for inspection.
-
-## Compare
-
-Checked on 2026-10-15.
-
-| Property | benchmark-payment-delegation | General chat leaderboard | Ad hoc prompt test |
-| --- | --- | --- | --- |
-| Target | Spend limits, merchant allowlists and disputes for an agent with a card. | Broad model quality | One local example |
-| Grading | Deterministic code | Varies | Manual |
-| Offline run | Mock provider | Varies | Varies |
-| Provenance | Package record | Varies | Usually absent |
-
-## Coverage
-
-| Surface | Status |
-| --- | --- |
-| episode tasks | Included |
-| SDK | Included |
-| CLI | Included |
-| MCP server | Included |
-| HTTP API | Included |
-
-The E2E gate checks every listed surface against the package source.
-
-## Common use cases
-
-1. **Model developers:** compare adapters with the same seeded tasks.
-2. **Agent developers:** inspect task-level failures before changing prompts.
-3. **Release teams:** run the mock gate before publishing a data update.
-4. **Researchers:** export per-task scores for a reproducible analysis.
-
-## Features
-
-- **Deterministic grading:** Each row includes a score and reason.
-- **Reproducible data:** A committed seeded script creates the public tasks.
-- **Share cards:** The `card` command writes a 1200×630 SVG.
-- **Provenance:** Code and Markdown carry the same source record.
+- `data/tasks.jsonl` — public split (seed `20261015`)
+- `data/PROVENANCE.md` — licences, cutoff, refresh
+- `docs/scenario-catalog.md` — human-written trap catalog (MIT)
 
 ## SDK
 
@@ -90,77 +65,25 @@ The E2E gate checks every listed surface against the package source.
 import { benchmark, run, score } from "benchmark-payment-delegation";
 ```
 
-`run(adapter, options)` creates a report. `score(taskId, submission)` grades one trace.
-
 ## CLI
 
-Commands are `list`, `show`, `run`, `score`, `card`, `provenance`, `index-entry`, `serve`, and `mcp`. Pass `--json` for machine-readable output.
+`list`, `show`, `run`, `score`, `card`, `provenance`, `index-entry`, `serve`, `mcp`. Use `--json` for machine output.
 
 ## Model Context Protocol
-
-Start the MCP stdio server:
 
 ```bash
 npx benchmark-payment-delegation mcp
 ```
 
-Tools are `list_tasks`, `get_task`, `score_answer`, `run_benchmark`, and `get_provenance`.
+Tools: `list_tasks`, `get_task`, `score_answer`, `run_benchmark`, `get_provenance`.
 
 ## HTTP API
 
-Import `handler` from `benchmark-payment-delegation/api`, or run `npx benchmark-payment-delegation serve`. Routes are `GET /health`, `GET /v1/tasks`, `GET /v1/tasks/:id`, `POST /v1/score`, `GET /v1/provenance`, and `GET /v1/index-entry`.
-
-## Data provenance
-
-`data/tasks.jsonl` contains the public tasks. `data/PROVENANCE.md` names the generator, seed, licence, cutoff, and refresh steps. Run `npm run generate:tasks` to rebuild tasks and `npm run provenance` after a build.
+`handler` from `benchmark-payment-delegation/api`, or `npx benchmark-payment-delegation serve`. Routes: `/health`, `/v1/tasks`, `/v1/tasks/:id`, `/v1/score`, `/v1/provenance`, `/v1/index-entry`.
 
 ## Limits
 
-The starter tasks prove package wiring, not model quality. Replace them before publishing a real benchmark. Public tasks can enter training data. Keep a separately seeded hidden split for final comparisons. Remote providers can add cost and retain prompts under their own policies.
-
-## Integration guides
-
-- [TypeScript SDK integration](#sdk)
-- [Model Context Protocol integration](#model-context-protocol)
-- [HTTP API integration](#http-api)
-
-## Status
-
-Version 0.1.0 is alpha. Task schemas and grading may change before 1.0. Report defects through the GitHub issue tracker. Public case studies are not yet published.
-
-## FAQ
-
-### What does benchmark-payment-delegation measure?
-
-benchmark-payment-delegation measures this behavior: Spend limits, merchant allowlists and disputes for an agent with a card. The committed grader defines the exact pass conditions.
-
-### Can benchmark-payment-delegation run offline?
-
-benchmark-payment-delegation runs end to end with the mock provider and no key. Real model runs need a configured provider.
-
-### Which providers work?
-
-benchmark-payment-delegation supports OpenRouter, an OpenAI-compatible base URL, and the offline mock adapter through benchmark-core.
-
-### Does benchmark-payment-delegation provide a hosted service?
-
-benchmark-payment-delegation provides a server you run. It does not provide a managed benchmark service.
-
-### Where do the tasks come from?
-
-benchmark-payment-delegation ships seeded synthetic starter tasks. The provenance file explains how to reproduce and refresh them.
-
-### How are answers graded?
-
-benchmark-payment-delegation uses exact match for single answers and simulator replay for episode traces. Model judging is off.
-
-### How is this different from a general leaderboard?
-
-benchmark-payment-delegation measures one named behavior with inspectable tasks and grading. General leaderboards combine broader capabilities.
-
-### Can I use a hidden split?
-
-benchmark-payment-delegation supports the same schema for public and hidden tasks. Keep hidden data outside the npm package and public repository.
+Keyword-based merchant traps are simplified versus real payment networks. The mock adapter uses per-task scripts; live models may need more turns. Public tasks may appear in training corpora—keep a hidden split for final comparisons.
 
 ## License
 
