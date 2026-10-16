@@ -494,7 +494,9 @@ if (split === "hidden") {
     process.exit(1);
   }
 }
-const out = outPath ?? (split === "hidden" ? "data/tasks-hidden.jsonl" : "data/tasks.jsonl");
+// Hidden output lives in gitignored .hidden/, never data/: the package `files`
+// list includes data/, so a hidden file there would be packed and published.
+const out = outPath ?? (split === "hidden" ? ".hidden/tasks-hidden.jsonl" : "data/tasks.jsonl");
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, `${tasks.map((task) => JSON.stringify(task)).join("\n")}\n`);
 console.log(`generated ${tasks.length} tasks to ${out} (seed=${seed}, split=${split})`);

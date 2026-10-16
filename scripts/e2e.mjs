@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { benchmark, gradePaymentTask, LedgerEnvironment } from "../dist/index.js";
+import { mockAdapter } from "benchmark-core";
+import { benchmark, createBenchmark, gradePaymentTask, LedgerEnvironment, run as sdkRun } from "../dist/index.js";
 const execFile = promisify(execFileCallback);
 
 await execFile("npm", ["run", "build"]);
@@ -101,7 +102,24 @@ const genFails = async (genArgs, env) => {
 };
 assert.ok(await genFails(["--split", "hidden", "--world", join(tmp, "missing.json"), "--seed", "1"], process.env), "a missing world file must fail");
 assert.ok(await genFails(["--split", "hidden", "--world", worldPath], { ...process.env, BPDG_HIDDEN_SEED: "" }), "a missing seed must fail");
-await rm(tmp, { recursive: true, force: true });
+// The default hidden output lives outside data/ so it can never be packed.
+await execFile(process.execPath, ["scripts/gen-tasks.mjs", "--split", "hidden", "--world", worldPath, "--seed", "515151"]);
+assert.match(await readFile(".hidden/tasks-hidden.jsonl", "utf8"), /"split":"hidden"/);
+const packed = JSON.parse((await execFile("npm", ["pack", "--dry-run", "--json"], { maxBuffer: 5_000_000 })).stdout);
+const packedNames = packed.flatMap((entry) => entry.files.map((file) => file.path));
+assert.ok(!packedNames.some((name) => /hidden/i.test(name)), `hidden file would be packed: ${packedNames.find((name) => /hidden/i.test(name))}`);
+await rm(".hidden", { recursive: true, force: true });
+
+// Default and hidden task lists must not contaminate each other: list and run
+// both splits in one process and check the ids each time.
+const idsOf = async (bench) => (await bench.listTasks()).map((task) => task.id);
+assert.ok((await idsOf(benchmark)).every((id) => id.startsWith("pd-")), "default split must keep public ids");
+assert.ok((await idsOf(createBenchmark({ tasksPath: hiddenPath }))).every((id) => id.startsWith("hidden-")), "hidden split must use hidden ids");
+assert.ok((await idsOf(benchmark)).every((id) => id.startsWith("pd-")), "default split must still keep public ids");
+assert.ok((await idsOf(createBenchmark({ tasksPath: hiddenPath }))).every((id) => id.startsWith("hidden-")), "hidden split must still use hidden ids");
+const hiddenRun = await sdkRun(mockAdapter({ seed: 1, policies: benchmark.definition.mockPolicies }), { tasksPath: hiddenPath });
+assert.equal(hiddenRun.rows.length, 40);
+assert.ok(hiddenRun.rows.every((row) => row.taskId.startsWith("hidden-")));
 
 const goalOf = (task) => task.input?.goal ?? {};
 const promptAmount = (task) => Number((task.prompt.match(/\$(\d+(?:\.\d+)?)/) ?? [])[1]);
@@ -226,6 +244,21 @@ assert.ok(report.rows.some((row) => row.score === 0));
 const mean = report.mean;
 assert.ok(mean > 0.2 && mean < 0.8, `mock mean should mix pass/fail, got ${mean}`);
 
+// --tasks swaps the task file for list, run and score.
+const hiddenList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.equal(hiddenList.tasks.length, 40);
+assert.ok(hiddenList.tasks.every((task) => task.id.startsWith("hidden-")));
+const hiddenCliRun = JSON.parse(
+  (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout,
+);
+assert.equal(hiddenCliRun.rows.length, 40);
+assert.ok(hiddenCliRun.rows.every((row) => row.taskId.startsWith("hidden-")));
+const hiddenReportPath = join(tmp, "hidden-report.json");
+await writeFile(hiddenReportPath, JSON.stringify(hiddenCliRun));
+const rescore = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "score", hiddenReportPath, "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.equal(rescore.rows.length, 40);
+assert.ok(rescore.rows.every((row) => row.taskId.startsWith("hidden-")));
+
 const probe = createNetServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
 const address = probe.address(); assert.ok(address && typeof address === "object");
@@ -247,6 +280,23 @@ try {
   assert.equal((await get("/v1/index-entry")).value.task_count, 40);
 } finally { if (server.exitCode === null) { server.kill("SIGTERM"); await once(server, "exit"); } }
 
+// The API exposes an env allow-list so an operator can serve a sealed split.
+process.env.BPDG_TASKS_PATH = `data/tasks.jsonl:${hiddenPath}`;
+const { handler } = await import("../dist/api.js");
+const merged = await (await handler(new Request("http://e2e/v1/tasks"))).json();
+assert.equal(merged.tasks.length, 80);
+const hiddenTaskResponse = await handler(new Request("http://e2e/v1/tasks/hidden-01"));
+assert.equal(hiddenTaskResponse.status, 200);
+const hiddenScore = await handler(
+  new Request("http://e2e/v1/score", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ taskId: "hidden-01", submission: hiddenCliRun.rows[0].submission }),
+  }),
+);
+assert.equal(hiddenScore.status, 200);
+delete process.env.BPDG_TASKS_PATH;
+
 const transport = new StdioClientTransport({ command: process.execPath, args: ["dist/cli.js", "mcp"], cwd: process.cwd(), stderr: "pipe" });
 const client = new Client({ name: "benchmark-payment-delegation-e2e", version: "0.1.0" });
 await client.connect(transport); let toolNames;
@@ -263,6 +313,22 @@ try {
     if (name === "run_benchmark") assert.equal(result.isError, true); else assert.notEqual(result.isError, true);
   }
 } finally { await client.close(); }
+
+// MCP honours the same allow-list.
+const hiddenTransport = new StdioClientTransport({
+  command: process.execPath,
+  args: ["dist/cli.js", "mcp"],
+  env: { ...process.env, BPDG_TASKS_PATH: `data/tasks.jsonl:${hiddenPath}` },
+  cwd: process.cwd(),
+  stderr: "pipe",
+});
+const hiddenClient = new Client({ name: "benchmark-payment-delegation-hidden-e2e", version: "0.1.0" });
+await hiddenClient.connect(hiddenTransport);
+try {
+  const got = await hiddenClient.callTool({ name: "get_task", arguments: { taskId: "hidden-01" } });
+  assert.notEqual(got.isError, true);
+} finally { await hiddenClient.close(); }
+await rm(tmp, { recursive: true, force: true });
 
 const artifact = { task_count: report.rows.length, scores: report.rows.map((row) => row.score), route_status_codes: routes, tool_names: toolNames };
 await mkdir("artifacts", { recursive: true });

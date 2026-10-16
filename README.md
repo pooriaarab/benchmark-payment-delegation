@@ -17,7 +17,7 @@ npx benchmark-payment-delegation run --provider mock --model offline
 - Tasks: 40
 ```
 
-Forty episode tasks use a ledger simulator (`get_balance`, `search_merchants`, `purchase`, `refund`, `dispute`, `ask_owner`). Data is synthetic (CC0 merchants, MIT scenario catalog). Regenerate with `node scripts/gen-tasks.mjs --seed 20261015`. Hidden evaluation tasks use `--split hidden` with a private world file (`--world <path>` or `BPDG_HIDDEN_WORLD`) and stay out of the public npm package.
+Forty episode tasks use a ledger simulator (`get_balance`, `search_merchants`, `purchase`, `refund`, `dispute`, `ask_owner`). Data is synthetic (CC0 merchants, MIT scenario catalog). Regenerate with `node scripts/gen-tasks.mjs --seed 20261015`. Hidden evaluation tasks use `--split hidden` with a private world file (`--world <path>` or `BPDG_HIDDEN_WORLD`) and a seed from `BPDG_HIDDEN_SEED`; output lands in gitignored `.hidden/` and stays out of the public npm package. Run them with `--tasks .hidden/tasks-hidden.jsonl`, the SDK `tasksPath` option, or the `BPDG_TASKS_PATH` allow-list (colon-separated JSONL files) on `serve` and `mcp`.
 
 ## Install
 
@@ -67,7 +67,7 @@ import { benchmark, run, score } from "benchmark-payment-delegation";
 
 ## CLI
 
-`list`, `show`, `run`, `score`, `card`, `provenance`, `index-entry`, `serve`, `mcp`. Use `--json` for machine output.
+`list`, `show`, `run`, `score`, `card`, `provenance`, `index-entry`, `serve`, `mcp`. Use `--json` for machine output and `--tasks <path>` to run a different task file.
 
 ## Model Context Protocol
 

@@ -2,5 +2,5 @@ node_modules/
 dist/
 artifacts/
 *.tgz
-data/tasks-hidden.jsonl
+.hidden/
 scripts/hidden-world.json
