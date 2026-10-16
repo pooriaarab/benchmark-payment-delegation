@@ -8,6 +8,7 @@ authors:
 version: "0.1.0"
 date-released: 2026-10-16
 license: MIT
+doi: 10.5281/zenodo.23422414
 repository-code: https://github.com/pooriaarab/benchmark-payment-delegation
 url: "https://private-repo-337e.com/benchmarks/benchmark-payment-delegation"
 abstract: "AI benchmark for delegated card policy: spend caps, merchant allowlists, refunds, and disputes (agent evals)."
