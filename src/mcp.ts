@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MAX_TOOL_LOG_ENTRIES, openrouterAdapter, run, type Benchmark, type Trace } from "benchmark-core";
-import { createBenchmark } from "./benchmark.js";
+import { createBenchmark, publicTask } from "./benchmark.js";
 import { attachGraderDetails } from "./details.js";
 
 // BPDG_TASKS_PATH is the operator allow-list: colon-separated JSONL files that
@@ -40,11 +40,13 @@ export function createMcpServer(active: Benchmark = envBenchmark): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
       const input = args(request.params.arguments);
-      if (request.params.name === "list_tasks") return content({ tasks: await active.listTasks() });
+      // Task views hide the rubric and the mock scripts: an MCP client sees
+      // only what a solver legitimately sees (id, kind, prompt, tags).
+      if (request.params.name === "list_tasks") return content({ tasks: (await active.listTasks()).map(publicTask) });
       if (request.params.name === "get_task") {
         if (typeof input.taskId !== "string") return content({ error: "taskId is required." }, true);
         const task = await active.getTask(input.taskId);
-        return task ? content({ task }) : content({ error: "Task not found." }, true);
+        return task ? content({ task: publicTask(task) }) : content({ error: "Task not found." }, true);
       }
       if (request.params.name === "score_answer") {
         if (typeof input.taskId !== "string" || !input.submission || typeof input.submission !== "object" || Array.isArray(input.submission)) {

@@ -12,6 +12,7 @@ import {
   type ModelAdapter,
   type RunReport,
 } from "benchmark-core";
+import { serveApi } from "./api.js";
 import { benchmark, createBenchmark } from "./benchmark.js";
 import { attachGraderDetails, graderSummary, withGraderTotals } from "./details.js";
 import { startMcp } from "./mcp.js";
@@ -19,6 +20,7 @@ import { startMcp } from "./mcp.js";
 const argv = process.argv.slice(2);
 const flag = argv.indexOf("--tasks");
 let active = benchmark;
+let extraTasks = false;
 const args = [...argv];
 if (flag !== -1) {
   const path = argv[flag + 1];
@@ -27,12 +29,16 @@ if (flag !== -1) {
     process.exit(1);
   }
   active = createBenchmark({ tasksPath: path });
+  extraTasks = true;
   args.splice(flag, 2);
 } else if (process.env.BPDG_TASKS_PATH && (args[0] === "serve" || args[0] === "mcp")) {
   // The env allow-list is scoped to the serving surfaces; every other
   // subcommand needs an explicit --tasks to swap task files.
   const paths = process.env.BPDG_TASKS_PATH.split(":").filter(Boolean);
-  if (paths.length) active = createBenchmark({ tasksPath: paths });
+  if (paths.length) {
+    active = createBenchmark({ tasksPath: paths });
+    extraTasks = true;
+  }
 }
 
 class UsageError extends Error {}
@@ -134,6 +140,9 @@ async function main(): Promise<number> {
   if (command === "mcp") {
     await startMcp(active);
     return 0;
+  }
+  if (command === "serve") {
+    return serveApi(active, rest, extraTasks);
   }
   return createCli(active, { bin: "benchmark-payment-delegation" }).main(args);
 }
