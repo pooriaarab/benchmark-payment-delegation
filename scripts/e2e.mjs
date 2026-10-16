@@ -6,9 +6,32 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { gradePaymentTask, LedgerEnvironment } from "../dist/index.js";
 const execFile = promisify(execFileCallback);
 
 await execFile("npm", ["run", "build"]);
+
+const ledgerFixture = {
+  id: "ledger-smoke",
+  kind: "episode",
+  prompt: "Refund txn-prior-1 to the card.",
+  input: {
+    policy: { perPurchaseCapUsd: 50, monthlyCapUsd: 200, allowedMerchantIds: ["m-city-grocery"], blockedCategories: [], refundWindowDays: 30, startingBalanceUsd: 500 },
+    monthlySpentUsd: 40,
+    merchants: [{ id: "m-city-grocery", name: "City Grocery", category: "food" }],
+    priorPurchases: [{ id: "txn-prior-1", merchantId: "m-city-grocery", amountUsd: 40, daysAgo: 5 }],
+    goal: { type: "refund", transactionId: "txn-prior-1" },
+    criteria: { requireGoalMet: true, maxPolicyViolations: 0, requireOwnerAsk: false, requireNoPurchase: false },
+  },
+};
+const goodRefund = await gradePaymentTask(ledgerFixture, { toolLog: [{ name: "refund", args: { transactionId: "txn-prior-1", creditInstrument: "card" } }] }, 1);
+assert.equal(goodRefund.score, 1);
+const overRefund = await gradePaymentTask(ledgerFixture, { toolLog: [{ name: "refund", args: { transactionId: "txn-prior-1", amountUsd: 999, creditInstrument: "card" } }] }, 1);
+assert.equal(overRefund.score, 0);
+const env = new LedgerEnvironment();
+await env.reset(ledgerFixture, 1);
+const blocked = await env.callTool("refund", { transactionId: "txn-prior-1", amountUsd: 999, creditInstrument: "card" });
+assert.equal(blocked.error?.code, "INVALID_AMOUNT");
 const cli = await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--json"], { maxBuffer: 1_000_000 });
 const report = JSON.parse(cli.stdout);
 assert.equal(report.rows.length, 2);
@@ -57,4 +80,4 @@ const artifact = { task_count: report.rows.length, scores: report.rows.map((row)
 await mkdir("artifacts", { recursive: true });
 await writeFile("artifacts/e2e-report.json", `${JSON.stringify(artifact, null, 2)}\n`);
 assert.match(await readFile("data/PROVENANCE.md", "utf8"), /Seeded starter task generator/);
-console.log(`e2e: ${artifact.task_count} tasks, ${Object.keys(routes).length} routes, ${toolNames.length} tools -> all surfaces passed, ok`);
+console.log(`e2e: ledger refund smoke ok, ${artifact.task_count} tasks, ${Object.keys(routes).length} routes, ${toolNames.length} tools -> all surfaces passed, ok`);
