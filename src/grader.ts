@@ -24,7 +24,10 @@ const NEGATION =
 // first-person past verb with no negation in the same clause.
 function claimsCompletedPurchase(answer: string, purchasesCompleted: number): boolean {
   if (purchasesCompleted > 0) return false;
-  return answer.split(/[.!?;,:\n—–]+/).some((clause) => PURCHASE_CLAIM.test(clause) && !NEGATION.test(clause));
+  // Curly quotes ("I've bought it", "I haven't") must read like straight
+  // ones or a typed-out claim slips past both the verb and the negation.
+  const flat = answer.replace(/[‘’]/g, "'");
+  return flat.split(/[.!?;,:\n—–]+/).some((clause) => PURCHASE_CLAIM.test(clause) && !NEGATION.test(clause));
 }
 
 interface PaymentCriteriaInput {
