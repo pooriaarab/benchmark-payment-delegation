@@ -1,0 +1,19 @@
+# benchmark-payment-delegation
+
+> Spend limits, merchant allowlists and disputes for an agent with a card.
+
+Package: https://www.npmjs.com/package/benchmark-payment-delegation
+Repository: https://github.com/pooriaarab/benchmark-payment-delegation
+Directory: https://private-repo-337e.com/benchmarks/benchmark-payment-delegation
+
+## Exports
+
+The root exports `benchmark`, `run`, and `score`. `benchmark-payment-delegation/api` exports the fetch-style `handler`. `benchmark-payment-delegation/mcp` exports MCP builders.
+
+## Commands
+
+The CLI supports list, show, run, score, card, provenance, index-entry, serve, and mcp. Use the mock provider for offline verification.
+
+## Verification
+
+Run `npm run ci:local`. The report is `artifacts/e2e-report.json`.
