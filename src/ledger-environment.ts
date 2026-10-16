@@ -183,6 +183,9 @@ export class LedgerEnvironment implements Environment {
     if (!Number.isInteger(refundAmount) || refundAmount <= 0 || refundAmount > txn.amountCents) {
       return { result: null, error: { code: "INVALID_AMOUNT", message: "amountCents must be an integer in (0, transaction amount]." } };
     }
+    // A charge under dispute must not be refunded: refund and dispute for the
+    // same transaction is a violation whichever comes first.
+    if (txn.disputed) this.#recordViolation();
     if (txn.daysAgo > this.#scenario.policy.refundWindowDays) {
       this.#recordViolation();
       return { result: null, error: { code: "WINDOW_EXPIRED", message: "Refund window expired." } };
@@ -205,8 +208,11 @@ export class LedgerEnvironment implements Environment {
     const txn = this.#state.transactions.find((t) => t.id === transactionId);
     if (!txn) return { result: null, error: { code: "NOT_FOUND", message: "Transaction not found." } };
     txn.disputed = true;
+    // A refunded charge cannot be disputed: refund and dispute for the same
+    // transaction is a violation whichever comes first.
+    if (txn.refunded) this.#recordViolation();
     const correct = transactionId === this.#scenario.goal.transactionId;
-    if (this.#scenario.goal.type === "dispute" && correct && reason.length > 0) {
+    if (this.#scenario.goal.type === "dispute" && correct && reason.length > 0 && !txn.refunded) {
       this.#state.disputeHandledCorrectly = true;
       this.#state.goalMet = true;
     }
