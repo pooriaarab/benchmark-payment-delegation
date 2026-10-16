@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { mockAdapter } from "benchmark-core";
-import { benchmark, createBenchmark, gradePaymentTask, LedgerEnvironment, run as sdkRun } from "../dist/index.js";
+import { benchmark, createBenchmark, gradePaymentTask, LedgerEnvironment, run as sdkRun, score as sdkScore } from "../dist/index.js";
 const execFile = promisify(execFileCallback);
 
 await execFile("npm", ["run", "build"]);
@@ -102,6 +102,7 @@ const genFails = async (genArgs, env) => {
 };
 assert.ok(await genFails(["--split", "hidden", "--world", join(tmp, "missing.json"), "--seed", "1"], process.env), "a missing world file must fail");
 assert.ok(await genFails(["--split", "hidden", "--world", worldPath], { ...process.env, BPDG_HIDDEN_SEED: "" }), "a missing seed must fail");
+assert.ok(await genFails(["--split", "hidden", "--world", worldPath, "--seed", "9", "--out", "data/tasks-hidden.jsonl"], process.env), "a hidden --out under data/ must fail");
 // The default hidden output lives outside data/ so it can never be packed.
 await execFile(process.execPath, ["scripts/gen-tasks.mjs", "--split", "hidden", "--world", worldPath, "--seed", "515151"]);
 assert.match(await readFile(".hidden/tasks-hidden.jsonl", "utf8"), /"split":"hidden"/);
@@ -244,10 +245,12 @@ assert.ok(report.rows.some((row) => row.score === 0));
 const mean = report.mean;
 assert.ok(mean > 0.2 && mean < 0.8, `mock mean should mix pass/fail, got ${mean}`);
 
-// --tasks swaps the task file for list, run and score.
+// --tasks swaps the task file for list, show, run and score.
 const hiddenList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
 assert.equal(hiddenList.tasks.length, 40);
 assert.ok(hiddenList.tasks.every((task) => task.id.startsWith("hidden-")));
+const hiddenShow = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "show", "hidden-01", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.equal(hiddenShow.task.id, "hidden-01");
 const hiddenCliRun = JSON.parse(
   (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout,
 );
@@ -258,6 +261,11 @@ await writeFile(hiddenReportPath, JSON.stringify(hiddenCliRun));
 const rescore = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "score", hiddenReportPath, "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
 assert.equal(rescore.rows.length, 40);
 assert.ok(rescore.rows.every((row) => row.taskId.startsWith("hidden-")));
+// The SDK score surface honours tasksPath too: a hidden id resolves only
+// against the hidden file, and grading routes through that split's grader.
+const hiddenGrade = await sdkScore("hidden-01", hiddenCliRun.rows[0].submission, { tasksPath: hiddenPath });
+assert.equal(typeof hiddenGrade.score, "number");
+await assert.rejects(sdkScore("hidden-01", {}, {}), /Task not found/);
 
 const probe = createNetServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));

@@ -4,3 +4,4 @@ artifacts/
 *.tgz
 .hidden/
 scripts/hidden-world.json
+data/tasks-hidden.jsonl
