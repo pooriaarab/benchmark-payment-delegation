@@ -440,7 +440,7 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === "--split" && args[i + 1]) split = args[++i];
 }
 // The hidden seed is never committed: pass it through the environment.
-const seed = seedArg ?? (split === "hidden" ? Number(process.env.BPDG_HIDDEN_SEED) : 20261015);
+const seed = seedArg ?? (split === "hidden" ? (process.env.BPDG_HIDDEN_SEED ? Number(process.env.BPDG_HIDDEN_SEED) : undefined) : 20261015);
 if (!Number.isInteger(seed)) {
   console.error("the hidden split needs a seed via BPDG_HIDDEN_SEED or --seed");
   process.exit(1);
