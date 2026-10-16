@@ -11,9 +11,10 @@ import {
   run,
   type ModelAdapter,
   type RunReport,
+  type Task,
 } from "benchmark-core";
 import { serveApi } from "./api.js";
-import { benchmark, createBenchmark } from "./benchmark.js";
+import { benchmark, createBenchmark, publicTask } from "./benchmark.js";
 import { attachGraderDetails, graderSummary, withGraderTotals } from "./details.js";
 import { startMcp } from "./mcp.js";
 
@@ -68,6 +69,8 @@ function asReport(value: unknown): RunReport {
   return value as RunReport;
 }
 
+const cliTaskView = (task: Task): Task => (task.metadata?.split === "hidden" ? publicTask(task) : task);
+
 function printReport(report: RunReport, json: boolean): void {
   if (json) {
     console.log(JSON.stringify(report));
@@ -83,6 +86,22 @@ async function main(): Promise<number> {
   const rest = args.slice(1);
   const json = rest.includes("--json");
   const clean = rest.filter((arg) => arg !== "--json");
+  // Hidden tasks list and show in the sealed view the API and MCP return:
+  // no grading input, no mock scripts. Public tasks may show everything.
+  if (command === "list") {
+    const tasks = (await active.listTasks()).map(cliTaskView);
+    console.log(json ? JSON.stringify({ tasks }) : tasks.map((task) => `${task.id}\t${task.prompt}`).join("\n"));
+    return 0;
+  }
+  if (command === "show") {
+    const id = clean[0];
+    if (!id) throw new UsageError("show needs a task id.");
+    const found = await active.getTask(id);
+    if (!found) throw new UsageError(`Task not found: ${id}`);
+    const task = cliTaskView(found);
+    console.log(json ? JSON.stringify({ task }) : `${task.id}\n\n${task.prompt}`);
+    return 0;
+  }
   if (command === "run") {
     const parsed = parseArgs({
       args: clean,

@@ -19,3 +19,4 @@ All notable changes to benchmark-payment-delegation. The format follows Keep a C
 - Refunds and disputes judge on the final ledger state: refunds past the goal amount or on an unnamed transaction are violations, and a dispute on anything but the named charge is a violation too.
 - The hidden split can no longer leak into the npm package: it writes outside `data/` and `npm pack` is asserted clean in e2e.
 - SDK `run` and `score` build a fresh benchmark per call, so a tasks file rewritten at the same path re-reads instead of serving the first parse.
+- CLI `list` and `show` seal hidden-split tasks the way the API and MCP do: no grading input or mock scripts in the output.
