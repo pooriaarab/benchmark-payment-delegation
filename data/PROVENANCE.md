@@ -9,7 +9,7 @@ This file is generated from the benchmark definition.
 - Licence: `CC0-1.0`
 - Retrieved: 2026-10-15T00:00:00.000Z
 - How to get it: Run `node scripts/gen-tasks.mjs --seed 20261015` from the repository root.
-- Contamination notes: Public split uses seed 20261015. Hidden evaluation tasks use `node scripts/gen-tasks.mjs --seed 20261015 --split hidden` and are not committed.
+- Contamination notes: Public split uses seed 20261015. Hidden tasks come from a private world file (merchants, caps, prompt templates) that is never committed: `BPDG_HIDDEN_SEED=<seed> node scripts/gen-tasks.mjs --split hidden --world <private.json>` writes gitignored .hidden/tasks-hidden.jsonl. Serve them with `--tasks`, the SDK `tasksPath` option, or the `BPDG_TASKS_PATH` allow-list.
 - Refresh: Edit scenario templates in scripts/gen-tasks.mjs, bump seed, regenerate JSONL, and review diffs.
 
 ## Scenario catalog (human-written)
