@@ -92,9 +92,10 @@ const publicMerchantIds = new Set(tasks.flatMap((t) => (t.input?.merchants ?? []
 assert.ok(hidden.every((t) => (t.input?.merchants ?? []).every((m) => !publicMerchantIds.has(m.id))), "hidden split reuses a public merchant id");
 const publicMerchantNames = tasks.flatMap((t) => (t.input?.merchants ?? []).map((m) => m.name));
 assert.ok(hidden.every((t) => !publicMerchantNames.some((name) => t.prompt.includes(name))), "a hidden prompt names a public merchant");
-const genFails = async (genArgs, env) => {
+const genScript = join(process.cwd(), "scripts/gen-tasks.mjs");
+const genFails = async (genArgs, env, cwd) => {
   try {
-    await execFile(process.execPath, ["scripts/gen-tasks.mjs", ...genArgs], { env });
+    await execFile(process.execPath, [genScript, ...genArgs], { env, ...(cwd === undefined ? {} : { cwd }) });
     return false;
   } catch {
     return true;
@@ -103,6 +104,17 @@ const genFails = async (genArgs, env) => {
 assert.ok(await genFails(["--split", "hidden", "--world", join(tmp, "missing.json"), "--seed", "1"], process.env), "a missing world file must fail");
 assert.ok(await genFails(["--split", "hidden", "--world", worldPath], { ...process.env, BPDG_HIDDEN_SEED: "" }), "a missing seed must fail");
 assert.ok(await genFails(["--split", "hidden", "--world", worldPath, "--seed", "9", "--out", "data/tasks-hidden.jsonl"], process.env), "a hidden --out under data/ must fail");
+// The --out guard anchors to the package's own data/ directory: escaping via
+// a subdirectory cwd or an absolute path must fail just the same.
+assert.ok(
+  await genFails(["--split", "hidden", "--world", worldPath, "--seed", "9", "--out", "../data/tasks-hidden.jsonl"], process.env, join(process.cwd(), "scripts")),
+  "a hidden --out escaping into data/ from a subdirectory must fail",
+);
+assert.ok(
+  await genFails(["--split", "hidden", "--world", worldPath, "--seed", "9", "--out", join(process.cwd(), "data", "tasks-hidden.jsonl")], process.env),
+  "an absolute hidden --out under data/ must fail",
+);
+await rm("data/tasks-hidden.jsonl", { force: true });
 // The default hidden output lives outside data/ so it can never be packed.
 await execFile(process.execPath, ["scripts/gen-tasks.mjs", "--split", "hidden", "--world", worldPath, "--seed", "515151"]);
 assert.match(await readFile(".hidden/tasks-hidden.jsonl", "utf8"), /"split":"hidden"/);
@@ -121,6 +133,11 @@ assert.ok((await idsOf(createBenchmark({ tasksPath: hiddenPath }))).every((id) =
 const hiddenRun = await sdkRun(mockAdapter({ seed: 1, policies: benchmark.definition.mockPolicies }), { tasksPath: hiddenPath });
 assert.equal(hiddenRun.rows.length, 40);
 assert.ok(hiddenRun.rows.every((row) => row.taskId.startsWith("hidden-")));
+// An explicit but empty tasksPath fails on every surface instead of silently
+// grading the packaged public split.
+assert.throws(() => createBenchmark({ tasksPath: [] }), /tasksPath/);
+assert.throws(() => sdkRun(mockAdapter({ seed: 1 }), { tasksPath: [] }), /tasksPath/);
+await assert.rejects(sdkScore("pd-buy-coffee-01", {}, { tasksPath: [] }), /tasksPath/);
 
 const goalOf = (task) => task.input?.goal ?? {};
 const promptAmount = (task) => Number((task.prompt.match(/\$(\d+(?:\.\d+)?)/) ?? [])[1]);
@@ -290,7 +307,7 @@ try {
 
 // The API exposes an env allow-list so an operator can serve a sealed split.
 process.env.BPDG_TASKS_PATH = `data/tasks.jsonl:${hiddenPath}`;
-const { handler } = await import("../dist/api.js");
+const { handler, createApiHandler } = await import("../dist/api.js");
 const merged = await (await handler(new Request("http://e2e/v1/tasks"))).json();
 assert.equal(merged.tasks.length, 80);
 const hiddenTaskResponse = await handler(new Request("http://e2e/v1/tasks/hidden-01"));
@@ -304,6 +321,43 @@ const hiddenScore = await handler(
 );
 assert.equal(hiddenScore.status, 200);
 delete process.env.BPDG_TASKS_PATH;
+
+// Task listings never carry the rubric or the mock scripts, whatever split
+// the handler serves: the API shows only what a solver legitimately sees.
+const openHandler = createApiHandler(createBenchmark({ tasksPath: [hiddenPath] }));
+const listedOpen = await (await openHandler(new Request("http://e2e/v1/tasks"))).json();
+assert.equal(listedOpen.tasks.length, 40);
+assert.equal(listedOpen.tasks[0].input, undefined);
+assert.equal(listedOpen.tasks[0].expected, undefined);
+assert.ok(!JSON.stringify(listedOpen).includes("mockGood"), "task list must not leak mock scripts");
+assert.ok(!JSON.stringify(listedOpen).includes("requireGoalMet"), "task list must not leak grading criteria");
+const shownOpen = await (await openHandler(new Request("http://e2e/v1/tasks/hidden-01"))).json();
+assert.equal(shownOpen.task.id, "hidden-01");
+assert.equal(shownOpen.task.input, undefined);
+// BPDG_API_TOKEN gates every route when an operator sets it.
+const sealed = createApiHandler(createBenchmark({ tasksPath: [hiddenPath] }), "test-token");
+const denied = await sealed(new Request("http://e2e/v1/tasks"));
+assert.equal(denied.status, 401);
+const deniedScore = await sealed(new Request("http://e2e/v1/score", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }));
+assert.equal(deniedScore.status, 401);
+const authed = await sealed(new Request("http://e2e/v1/tasks", { headers: { authorization: "Bearer test-token" } }));
+assert.equal(authed.status, 200);
+// serve warns when a non-default task file is exposed without a token.
+const warner = spawn(process.execPath, ["dist/cli.js", "serve", "0"], {
+  env: { ...process.env, BPDG_TASKS_PATH: hiddenPath },
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let warned = "";
+warner.stderr.on("data", (chunk) => (warned += chunk));
+try {
+  for (let attempt = 0; attempt < 100 && !warned.includes("BPDG_API_TOKEN"); attempt++) await new Promise((r) => setTimeout(r, 30));
+  assert.match(warned, /unauthenticated API.*BPDG_API_TOKEN/);
+} finally {
+  if (warner.exitCode === null) {
+    warner.kill("SIGTERM");
+    await once(warner, "exit");
+  }
+}
 
 const transport = new StdioClientTransport({ command: process.execPath, args: ["dist/cli.js", "mcp"], cwd: process.cwd(), stderr: "pipe" });
 const client = new Client({ name: "benchmark-payment-delegation-e2e", version: "0.1.0" });
