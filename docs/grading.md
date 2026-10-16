@@ -18,4 +18,4 @@ Deterministic replay of the tool log through the ledger simulator and policy eng
 
 ## Reported details
 
-Each grade includes `details`: `policyViolations`, `goalMet`, `askedOwnerWhenNeeded`, `disputeHandledCorrectly`, `declineCommunicated`.
+Each grade includes `details`: `policyViolations`, `goalMet`, `askedOwnerWhenNeeded`, `disputeHandledCorrectly`, `declineCommunicated`. CLI `run`/`score` reports, the JSON report and MCP `run_benchmark` carry the same per-row `details` plus a `totals.grader` block that counts `met`/`applicable` per flag (a flag is applicable only where the scenario criteria ask for it); MCP `score_answer` and `POST /v1/score` return `details` per answer.
