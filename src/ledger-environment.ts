@@ -158,6 +158,9 @@ export class LedgerEnvironment implements Environment {
     if (!txn) return { result: null, error: { code: "NOT_FOUND", message: "Transaction not found." } };
     if (txn.refunded) return { result: null, error: { code: "ALREADY_REFUNDED", message: "Already refunded." } };
     const refundAmount = amountUsd ?? txn.amountUsd;
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > txn.amountUsd) {
+      return { result: null, error: { code: "INVALID_AMOUNT", message: "amountUsd must be in (0, transaction amount]." } };
+    }
     if (txn.daysAgo > this.#scenario.policy.refundWindowDays) {
       this.#recordViolation();
       return { result: null, error: { code: "WINDOW_EXPIRED", message: "Refund window expired." } };
