@@ -79,7 +79,7 @@ Tools: `list_tasks`, `get_task`, `score_answer`, `run_benchmark`, `get_provenanc
 
 ## HTTP API
 
-`handler` from `benchmark-payment-delegation/api`, or `npx benchmark-payment-delegation serve`. Routes: `/health`, `/v1/tasks`, `/v1/tasks/:id`, `/v1/score`, `/v1/provenance`, `/v1/index-entry`.
+`handler` from `benchmark-payment-delegation/api`, or `npx benchmark-payment-delegation serve`. Routes: `/health`, `/v1/tasks`, `/v1/tasks/:id`, `/v1/score`, `/v1/provenance`, `/v1/index-entry`. Task listings show only what a solver sees (no grading input or mock scripts); set `BPDG_API_TOKEN` to require `Authorization: Bearer <token>` on every route.
 
 ## Limits
 
