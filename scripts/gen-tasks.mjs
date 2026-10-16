@@ -215,7 +215,7 @@ function expandScenarios(seed, split) {
     };
     if (amountBump && task.input.goal.amountCents) {
       task.input.goal.amountCents += amountBump * 100;
-      task.prompt = task.prompt.replace(/\$\d+(\.\d+)?/, `$${task.input.goal.amountCents / 100}`);
+      task.prompt = task.prompt.replace(/\$\d+(\.\d+)?/, () => `$${task.input.goal.amountCents / 100}`);
     }
     if (split === "hidden") task.id = `hidden-${String(out.length + 1).padStart(2, "0")}`;
     out.push(task);
