@@ -4,7 +4,7 @@
 
 - Install with `npm ci`.
 - Run the full gate with `npm run ci:local`.
-- Generate tasks with `npm run generate:tasks`.
+- Generate tasks with `npm run generate:tasks` (add `--seed N` and `--split hidden` via `node scripts/gen-tasks.mjs`).
 - Generate provenance after building with `npm run provenance`.
 - Add no unit tests. Extend `scripts/e2e.mjs` through a public surface.
 
