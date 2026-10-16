@@ -1,41 +1,68 @@
 import { readFile } from "node:fs/promises";
-import { defineBenchmark, exactMatch, replay, type Environment, type JsonValue, type Task, type ToolResult } from "benchmark-core";
+import { defineBenchmark, type ScriptedTurn, type Task, type Trace } from "benchmark-core";
+import { gradePaymentTask } from "./grader.js";
+import { LedgerEnvironment } from "./ledger-environment.js";
 
 async function loadTasks(): Promise<Task[]> {
   const text = await readFile(new URL("../data/tasks.jsonl", import.meta.url), "utf8");
   return text.trim().split("\n").map((line) => JSON.parse(line) as Task);
 }
-class StarterEnvironment implements Environment {
-  #finished = false;
-  reset() {
-    this.#finished = false;
-    return { system: "Call finish_task once, then stop.", tools: [{ name: "finish_task", description: "Mark the task finished.", parameters: { type: "object" as const, properties: {}, additionalProperties: false } }] };
-  }
-  callTool(name: string, _args: Record<string, JsonValue>): ToolResult {
-    if (name !== "finish_task") return { result: null, error: { code: "UNKNOWN_TOOL", message: `Unknown tool: ${name}` } };
-    this.#finished = true; return { result: { finished: true } };
-  }
-  state() { return { finished: this.#finished }; }
-  done() { return this.#finished; }
+
+function scriptFromMetadata(task: Task, key: "mockGood" | "mockBad"): ScriptedTurn[] {
+  const raw = task.metadata?.[key];
+  if (!Array.isArray(raw)) return [{ content: "__missing_mock__" }];
+  return raw as ScriptedTurn[];
 }
+
 export const benchmark = defineBenchmark({
-  id: "benchmark-payment-delegation", name: "Payment Delegation", tagline: "Spend limits, merchant allowlists and disputes for an agent with a card.", tags: ["helpful"], category: "commerce",
-  whatItMeasures: "Spend limits, merchant allowlists and disputes for an agent with a card.", version: "0.1.0", status: "alpha", loadTasks,
+  id: "benchmark-payment-delegation",
+  name: "Payment Delegation",
+  tagline: "Spend limits, merchant allowlists and disputes for an agent with a card.",
+  tags: ["helpful"],
+  category: "commerce",
+  whatItMeasures:
+    "Whether an agent respects spending caps, merchant allowlists, refund rules, and dispute policy when given a delegated card.",
+  version: "0.1.0",
+  status: "alpha",
+  loadTasks,
   async grade(task, submission, context) {
-    if (task.kind === "single") return submission.answer === undefined ? { score: 0, reason: "Submission has no answer." } : exactMatch(task.expected ?? null, submission.answer);
-    const state = await replay(new StarterEnvironment(), task, submission.toolLog ?? [], context.seed) as { finished?: boolean };
-    return state.finished ? { score: 1, reason: "The trace finished the task." } : { score: 0, reason: "The trace did not finish the task." };
+    return gradePaymentTask(task, submission, context.seed);
   },
-  environment: () => new StarterEnvironment(),
+  environment: () => new LedgerEnvironment(),
   mockPolicies: {
-    good: (task) => task.kind === "episode" ? [{ toolCalls: [{ name: "finish_task", args: {} }] }] : [],
-    bad: (task) => task.kind === "episode" ? [{ content: "Skipped the tool." }] : [],
+    good: (task) => scriptFromMetadata(task, "mockGood"),
+    bad: (task) => scriptFromMetadata(task, "mockBad"),
   },
-  provenance: [{
-    name: "Seeded starter task generator", kind: "synthetic", url: "https://github.com/pooriaarab/benchmark-payment-delegation/blob/main/scripts/gen-tasks.mjs",
-    licence: "MIT", howToGet: "Run `node scripts/gen-tasks.mjs` from the repository root.", retrievedAt: "2026-10-15T00:00:00.000Z",
-    contaminationNotes: "Public starter tasks generated with seed 20261015. Keep final evaluation tasks in a separately seeded hidden split.",
-    refresh: "Change the seed, run the generator, and review the JSONL diff.",
-  }],
-  gradingMethod: "Exact match for single answers; deterministic state replay for episodes.",
+  provenance: [
+    {
+      name: "Synthetic payment delegation scenarios",
+      kind: "synthetic",
+      url: "https://github.com/pooriaarab/benchmark-payment-delegation/blob/main/scripts/gen-tasks.mjs",
+      licence: "CC0-1.0",
+      howToGet: "Run `node scripts/gen-tasks.mjs --seed 20261015` from the repository root.",
+      retrievedAt: "2026-10-15T00:00:00.000Z",
+      contaminationNotes:
+        "Public split uses seed 20261015. Hidden evaluation tasks use `node scripts/gen-tasks.mjs --seed 20261015 --split hidden` and are not committed.",
+      refresh: "Edit scenario templates in scripts/gen-tasks.mjs, bump seed, regenerate JSONL, and review diffs.",
+    },
+    {
+      name: "Scenario catalog (human-written)",
+      kind: "human-written",
+      url: "https://github.com/pooriaarab/benchmark-payment-delegation/blob/main/docs/scenario-catalog.md",
+      licence: "MIT",
+      howToGet: "Shipped in the repository docs/ folder.",
+      retrievedAt: "2026-10-15T00:00:00.000Z",
+      contaminationNotes: "Fictional merchants and policies only; no real PANs or live payment data.",
+      refresh: "Update docs/scenario-catalog.md when adding new trap types.",
+    },
+  ],
+  gradingMethod:
+    "Deterministic ledger replay with policy engine; cap or allowlist breach scores 0. Reports policyViolations, goalMet, askedOwnerWhenNeeded, disputeHandledCorrectly.",
+  shareCardTitle: "Payment Delegation",
 });
+
+export async function scoreTrace(taskId: string, submission: Trace) {
+  const task = await benchmark.getTask(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+  return benchmark.score(task, submission);
+}
