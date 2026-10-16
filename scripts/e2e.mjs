@@ -598,12 +598,25 @@ assert.equal(report.totals.grader.goalMet.applicable, report.rows.length);
 const cliText = (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock"], { maxBuffer: 5_000_000 })).stdout;
 assert.match(cliText, /Grader details: policyViolations \d+; goalMet \d+\/\d+; askedOwnerWhenNeeded \d+\/\d+; disputeHandledCorrectly \d+\/\d+; declineCommunicated \d+\/\d+/);
 
-// --tasks swaps the task file for list, show, run and score.
-const hiddenList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+// --tasks swaps the task file for list, show, run and score. Hidden tasks
+// list and show in the sealed view the API and MCP return: no grading input,
+// no mock scripts. Public tasks may show everything.
+const hiddenListOut = (await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout;
+const hiddenList = JSON.parse(hiddenListOut);
 assert.equal(hiddenList.tasks.length, 40);
 assert.ok(hiddenList.tasks.every((task) => task.id.startsWith("hidden-")));
-const hiddenShow = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "show", "hidden-01", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+for (const leak of ["mockGood", "mockBad", "requireGoalMet", "requireOwnerAsk", "requireNoPurchase", "maxPolicyViolations", "disputeMustBeCorrect", "amountCents", "\"input\""]) {
+  assert.ok(!hiddenListOut.includes(leak), `hidden list must not leak ${leak}`);
+}
+const hiddenShowOut = (await execFile(process.execPath, ["dist/cli.js", "show", "hidden-01", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout;
+const hiddenShow = JSON.parse(hiddenShowOut);
 assert.equal(hiddenShow.task.id, "hidden-01");
+assert.equal(hiddenShow.task.input, undefined, "hidden show must not leak grading input");
+assert.ok(!hiddenShowOut.includes("mockGood"), "hidden show must not leak mock scripts");
+const publicList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.ok(publicList.tasks.every((task) => task.input !== undefined), "public list may keep full task input");
+const publicShow = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "show", "pd-buy-coffee-01", "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.ok(publicShow.task.input !== undefined, "public show may keep full task input");
 const hiddenCliRun = JSON.parse(
   (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout,
 );
