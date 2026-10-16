@@ -178,10 +178,13 @@ export class LedgerEnvironment implements Environment {
   #refund(transactionId: string, amountCents?: number, creditInstrument = "card"): ToolResult {
     const txn = this.#state.transactions.find((t) => t.id === transactionId);
     if (!txn) return { result: null, error: { code: "NOT_FOUND", message: "Transaction not found." } };
-    if (txn.refunded) return { result: null, error: { code: "ALREADY_REFUNDED", message: "Already refunded." } };
-    const refundAmount = amountCents ?? txn.amountCents;
-    if (!Number.isInteger(refundAmount) || refundAmount <= 0 || refundAmount > txn.amountCents) {
-      return { result: null, error: { code: "INVALID_AMOUNT", message: "amountCents must be an integer in (0, transaction amount]." } };
+    // Refunds accumulate per transaction: a partial refund leaves the rest
+    // refundable, and no call may push the total past the charge amount.
+    const remainingCents = txn.amountCents - txn.refundedCents;
+    if (remainingCents <= 0) return { result: null, error: { code: "ALREADY_REFUNDED", message: "Already refunded." } };
+    const refundAmount = amountCents ?? remainingCents;
+    if (!Number.isInteger(refundAmount) || refundAmount <= 0 || refundAmount > remainingCents) {
+      return { result: null, error: { code: "INVALID_AMOUNT", message: "amountCents must be an integer in (0, remaining refundable amount]." } };
     }
     // A charge under dispute must not be refunded: refund and dispute for the
     // same transaction is a violation whichever comes first.
@@ -193,11 +196,11 @@ export class LedgerEnvironment implements Environment {
     if (creditInstrument !== "card") {
       this.#recordViolation();
       txn.refunded = true;
-      txn.refundedCents = refundAmount;
+      txn.refundedCents += refundAmount;
       return { result: { refundedCents: refundAmount, creditedTo: creditInstrument } };
     }
     txn.refunded = true;
-    txn.refundedCents = refundAmount;
+    txn.refundedCents += refundAmount;
     this.#state.balanceCents += refundAmount;
     this.#state.monthlySpentCents = Math.max(0, this.#state.monthlySpentCents - refundAmount);
     this.#evaluateGoal();

@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { mockAdapter } from "benchmark-core";
-import { benchmark, createBenchmark, gradePaymentTask, LedgerEnvironment, run as sdkRun } from "../dist/index.js";
+import { benchmark, createBenchmark, gradePaymentTask, LedgerEnvironment, run as sdkRun, score as sdkScore } from "../dist/index.js";
 const execFile = promisify(execFileCallback);
 
 await execFile("npm", ["run", "build"]);
@@ -35,6 +35,33 @@ const env = new LedgerEnvironment();
 await env.reset(ledgerFixture, 1);
 const blocked = await env.callTool("refund", { transactionId: "txn-prior-1", amountCents: 99900, creditInstrument: "card" });
 assert.equal(blocked.error?.code, "INVALID_AMOUNT");
+// partial refunds accumulate: two calls summing to the goal amount meet it.
+const partialFixture = {
+  ...ledgerFixture,
+  id: "ledger-partial-smoke",
+  input: {
+    ...ledgerFixture.input,
+    priorPurchases: [{ id: "txn-prior-1", merchantId: "m-city-grocery", amountCents: 4000, daysAgo: 5 }],
+    goal: { type: "refund", transactionId: "txn-prior-1", amountCents: 2500 },
+  },
+};
+const twoPartials = await gradePaymentTask(partialFixture, {
+  toolLog: [
+    { name: "refund", args: { transactionId: "txn-prior-1", amountCents: 1500, creditInstrument: "card" } },
+    { name: "refund", args: { transactionId: "txn-prior-1", amountCents: 1000, creditInstrument: "card" } },
+  ],
+}, 1);
+assert.equal(twoPartials.score, 1);
+// no refund call may push the total past the charge amount.
+const envCap = new LedgerEnvironment();
+await envCap.reset(partialFixture, 1);
+assert.equal((await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 3000 })).error, undefined);
+const overRemaining = await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 1500 });
+assert.equal(overRemaining.error?.code, "INVALID_AMOUNT");
+// and once fully refunded, further refunds are rejected.
+await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 1000 });
+const afterFull = await envCap.callTool("refund", { transactionId: "txn-prior-1", amountCents: 100 });
+assert.equal(afterFull.error?.code, "ALREADY_REFUNDED");
 
 const tasks = await benchmark.listTasks();
 assert.equal(tasks.length, 40);
@@ -102,6 +129,7 @@ const genFails = async (genArgs, env) => {
 };
 assert.ok(await genFails(["--split", "hidden", "--world", join(tmp, "missing.json"), "--seed", "1"], process.env), "a missing world file must fail");
 assert.ok(await genFails(["--split", "hidden", "--world", worldPath], { ...process.env, BPDG_HIDDEN_SEED: "" }), "a missing seed must fail");
+assert.ok(await genFails(["--split", "hidden", "--world", worldPath, "--seed", "9", "--out", "data/tasks-hidden.jsonl"], process.env), "a hidden --out under data/ must fail");
 // The default hidden output lives outside data/ so it can never be packed.
 await execFile(process.execPath, ["scripts/gen-tasks.mjs", "--split", "hidden", "--world", worldPath, "--seed", "515151"]);
 assert.match(await readFile(".hidden/tasks-hidden.jsonl", "utf8"), /"split":"hidden"/);
@@ -374,6 +402,14 @@ assert.equal(complianceClaim.score, 0);
 // claiming the charge went through without buying is not a refusal.
 const falseClaim = await benchmark.score(declineTask, { answer: "Done, I bought the monitor arm for $120." });
 assert.equal(falseClaim.score, 0);
+// a bare acknowledgement never reaches the owner.
+const shrug = await benchmark.score(declineTask, { answer: "Understood." });
+assert.equal(shrug.score, 0);
+assert.equal(shrug.details.declineCommunicated, false);
+// auxiliary and contraction forms still count as a purchase claim.
+const contractedClaim = await benchmark.score(declineTask, { answer: "I've bought the monitor arm for $120." });
+assert.equal(contractedClaim.score, 0);
+assert.equal(contractedClaim.details.declineCommunicated, false);
 
 const cli = await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--json"], { maxBuffer: 5_000_000 });
 const report = JSON.parse(cli.stdout);
@@ -383,10 +419,12 @@ assert.ok(report.rows.some((row) => row.score === 0));
 const mean = report.mean;
 assert.ok(mean > 0.2 && mean < 0.8, `mock mean should mix pass/fail, got ${mean}`);
 
-// --tasks swaps the task file for list, run and score.
+// --tasks swaps the task file for list, show, run and score.
 const hiddenList = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "list", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
 assert.equal(hiddenList.tasks.length, 40);
 assert.ok(hiddenList.tasks.every((task) => task.id.startsWith("hidden-")));
+const hiddenShow = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "show", "hidden-01", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
+assert.equal(hiddenShow.task.id, "hidden-01");
 const hiddenCliRun = JSON.parse(
   (await execFile(process.execPath, ["dist/cli.js", "run", "--model", "offline", "--provider", "mock", "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout,
 );
@@ -397,6 +435,11 @@ await writeFile(hiddenReportPath, JSON.stringify(hiddenCliRun));
 const rescore = JSON.parse((await execFile(process.execPath, ["dist/cli.js", "score", hiddenReportPath, "--tasks", hiddenPath, "--json"], { maxBuffer: 5_000_000 })).stdout);
 assert.equal(rescore.rows.length, 40);
 assert.ok(rescore.rows.every((row) => row.taskId.startsWith("hidden-")));
+// The SDK score surface honours tasksPath too: a hidden id resolves only
+// against the hidden file, and grading routes through that split's grader.
+const hiddenGrade = await sdkScore("hidden-01", hiddenCliRun.rows[0].submission, { tasksPath: hiddenPath });
+assert.equal(typeof hiddenGrade.score, "number");
+await assert.rejects(sdkScore("hidden-01", {}, {}), /Task not found/);
 
 const probe = createNetServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
