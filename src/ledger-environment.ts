@@ -142,6 +142,7 @@ export class LedgerEnvironment implements Environment {
     if (amountUsd > this.#state.balanceUsd) violations.push("insufficient_balance");
     if (this.#scenario.criteria.requireOwnerAsk && !this.#state.ownerAsked) violations.push("owner_not_asked");
     if (violations.length > 0) {
+      this.#recordViolation();
       return { result: null, error: { code: "POLICY_BLOCK", message: `Purchase blocked: ${violations.join(", ")}.` } };
     }
     const id = `txn-${this.#state.transactions.length + 1}`;
