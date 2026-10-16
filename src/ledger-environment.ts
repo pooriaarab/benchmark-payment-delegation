@@ -4,6 +4,7 @@ export interface Merchant {
   id: string;
   name: string;
   category: string;
+  recurring?: boolean;
 }
 
 export interface Policy {
