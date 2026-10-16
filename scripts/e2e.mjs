@@ -179,6 +179,18 @@ assert.ok((await idsOf(createBenchmark({ tasksPath: hiddenPath }))).every((id) =
 const hiddenRun = await sdkRun(mockAdapter({ seed: 1, policies: benchmark.definition.mockPolicies }), { tasksPath: hiddenPath });
 assert.equal(hiddenRun.rows.length, 40);
 assert.ok(hiddenRun.rows.every((row) => row.taskId.startsWith("hidden-")));
+// A tasks file rewritten between calls must be re-read: the SDK builds a
+// fresh benchmark per call, so the second run sees the new ids at the same
+// path instead of the list a cached object first parsed.
+const swapPath = join(tmp, "swap-tasks.jsonl");
+await writeFile(swapPath, `${JSON.stringify({ ...tasks[0], id: "swap-first" })}\n`);
+const swapFirst = await sdkRun(mockAdapter({ seed: 1, policies: benchmark.definition.mockPolicies }), { tasksPath: swapPath });
+assert.deepEqual(swapFirst.rows.map((row) => row.taskId), ["swap-first"]);
+await writeFile(swapPath, `${JSON.stringify({ ...tasks[1], id: "swap-second" })}\n`);
+const swapSecond = await sdkRun(mockAdapter({ seed: 1, policies: benchmark.definition.mockPolicies }), { tasksPath: swapPath });
+assert.deepEqual(swapSecond.rows.map((row) => row.taskId), ["swap-second"]);
+await assert.rejects(sdkScore("swap-first", {}, { tasksPath: swapPath }), /Task not found/);
+await sdkScore("swap-second", { toolLog: [], answer: "re-scored" }, { tasksPath: swapPath });
 // An explicit but empty tasksPath fails on every surface instead of silently
 // grading the packaged public split.
 assert.throws(() => createBenchmark({ tasksPath: [] }), /tasksPath/);
