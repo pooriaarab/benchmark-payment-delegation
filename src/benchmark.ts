@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { defineBenchmark, type ScriptedTurn, type Task, type Trace } from "benchmark-core";
+import { defineBenchmark, type JsonValue, type ScriptedTurn, type Task, type Trace } from "benchmark-core";
 import { gradePaymentTask } from "./grader.js";
 import { LedgerEnvironment } from "./ledger-environment.js";
 
@@ -26,6 +26,11 @@ export interface BenchmarkOptions {
 // the object, so a tasksPath option must never reuse the default instance.
 export function createBenchmark(options: BenchmarkOptions = {}) {
   const paths = [options.tasksPath ?? []].flat();
+  // An explicit but empty tasksPath must fail: falling back to the packaged
+  // split would grade the wrong task file without any error.
+  if (options.tasksPath !== undefined && paths.length === 0) {
+    throw new Error("tasksPath must name at least one JSONL file.");
+  }
   const loadTasks = paths.length
     ? async () => (await Promise.all(paths.map((path) => readTasks(path)))).flat()
     : loadDefaultTasks;
@@ -81,6 +86,18 @@ function scriptFromMetadata(task: Task, key: "mockGood" | "mockBad"): ScriptedTu
   const raw = task.metadata?.[key];
   if (!Array.isArray(raw)) return [{ content: "__missing_mock__" }];
   return raw as ScriptedTurn[];
+}
+
+// Task listings never expose the grading rubric or the mock scripts: a task
+// view carries only what a solver legitimately sees (id, kind, prompt) plus
+// the scenario and split tags from metadata.
+export function publicTask(task: Task): Task {
+  const metadata: Record<string, JsonValue> = {};
+  for (const key of ["scenario", "split"] as const) {
+    const value = task.metadata?.[key];
+    if (value !== undefined) metadata[key] = value;
+  }
+  return { id: task.id, kind: task.kind, prompt: task.prompt, ...(Object.keys(metadata).length ? { metadata } : {}) };
 }
 
 export const benchmark = createBenchmark();

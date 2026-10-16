@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 function mulberry32(seed) {
   return function next() {
@@ -498,8 +499,12 @@ if (split === "hidden") {
 // list includes data/, so a hidden file there would be packed and published.
 const out = outPath ?? (split === "hidden" ? ".hidden/tasks-hidden.jsonl" : "data/tasks.jsonl");
 if (split === "hidden") {
-  const rel = relative(process.cwd(), resolve(out));
-  if (rel === "data" || rel.startsWith(`data${sep}`)) {
+  // Anchor the guard to the package's own data/ directory: a cwd-relative or
+  // absolute --out (or a case-variant on a case-insensitive filesystem) must
+  // not smuggle hidden output into the directory npm packs via `files`.
+  const dataDir = fileURLToPath(new URL("../data", import.meta.url)).toLowerCase();
+  const resolved = resolve(out).toLowerCase();
+  if (resolved === dataDir || resolved.startsWith(`${dataDir}${sep}`)) {
     console.error(`hidden output must not land under data/: ${out} would be packed by npm`);
     process.exit(1);
   }
