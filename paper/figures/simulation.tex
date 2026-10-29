@@ -1,0 +1,6 @@
+\begin{figure}[ht]\centering
+\begin{tikzpicture}\begin{axis}[ymin=0,ymax=1.05,xmin=0,xmax=1,xlabel={Simulated good-script selection probability},ylabel={Mean episode proportion},legend pos=north west]
+\addplot[okblue,mark=*,error bars/.cd,y dir=both,y explicit] table[x=p,y=success,y error minus=slow,y error plus=shigh,col sep=comma]{data/simulation.generated.csv};\addlegendentry{Simulated success}
+\addplot[okorange,mark=square*,error bars/.cd,y dir=both,y explicit] table[x=p,y=violation,y error minus=vlow,y error plus=vhigh,col sep=comma]{data/simulation.generated.csv};\addlegendentry{Simulated violations}
+\end{axis}\end{tikzpicture}
+\caption{The simulated sweep confirms sensitivity to reference-script selection. Bars resample simulated agents, holding public tasks fixed. They do not estimate variation across learned models or real payment environments. Endpoint intervals collapse because every simulated agent selects the same script.}\label{fig:simulation}\end{figure}

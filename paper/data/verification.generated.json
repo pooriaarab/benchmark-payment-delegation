@@ -1,0 +1,12 @@
+{
+  "pages": 10,
+  "episodes": 8640,
+  "conditions": 108,
+  "replayAgreement": true,
+  "semanticRepeatAgreement": true,
+  "sourceHashesVerified": true,
+  "generatedTables": 5,
+  "figures": 3,
+  "apiCostUsd": 0,
+  "pdfSha256": "41695e3b09472b52492e2fc3c0934d127498076aac37e6a778dea79236499c3b"
+}

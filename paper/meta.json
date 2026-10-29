@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "title": "Benchmark Payment Delegation: Policy Compliance and Useful Action in a Simulated Ledger",
+  "abstract": "Delegated payment agents must complete permitted work while respecting spending limits and owner authority. We present a synthetic ledger benchmark with 40 public episodes across 22 scenario templates. Native replay separates task success, ledger goal completion, and policy violations. Scripted reference success is 100.0% [91.2, 100.0] for the good policy and 0.0% [0.0, 8.8] for the bad policy. A constant OK response still scores 40.0% [26.3, 55.4], exposing weak evidence of informed refusal. Removing owner calls reduces success to 90.0% [76.9, 96.0]. A simulated population sweep varies selection between reference scripts and measures scoring sensitivity. All intervals are 95%; reference rates use Wilson intervals, and the simulated sweep resamples agent means. These results validate execution and expose scoring limits; they do not measure learned models, payment security in deployment, or human judgment.",
+  "authors": [
+    {
+      "name": "Pooria Arab",
+      "affiliation": "Independent researcher",
+      "orcid": "https://orcid.org/0009-0005-9964-6841"
+    }
+  ],
+  "license": "CC-BY-4.0",
+  "keywords": [
+    "payment delegation",
+    "policy compliance",
+    "ledger replay",
+    "simulated agents",
+    "evaluation"
+  ],
+  "code_url": "https://github.com/pooriaarab/benchmark-payment-delegation",
+  "artifact_name": "payment-delegation-paper.pdf"
+}

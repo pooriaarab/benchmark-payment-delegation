@@ -1,0 +1,17 @@
+{
+  "source_commit": "ba184ffd6deccddd5640eb6f1f76f5997338bc00",
+  "prereg_commit": "43805debef95d1c7e150ca34f25edc25b8b27f37",
+  "node": "v26.12.1",
+  "files": {
+    "data/tasks.jsonl": "dd21236f99c29f8b90930541e06f4cc4285bbfd266637b27ee3e92e2047ab15a",
+    "package-lock.json": "fec37ceebde5cedd5201d02b804a10c90d2eddc7d30c545b2f6b0ecc64281f03",
+    "src/benchmark.ts": "fafa1f5efbe0d65f4711d1af309a320eca638bd6bc13c3640a2dcd223282570b",
+    "src/grader.ts": "639fb3e8a3117226d4aed184987bf9d5f5a881603f8dcde99f62297049309326",
+    "src/ledger-environment.ts": "1c612a7657abd4eb14d323a33d2b7c598c0a75bd6774f83c4470f31cbc9bac3b",
+    "src/index.ts": "fa169c62eb43a868b99974663414edec6a62e3dbb3d73d35a85e5ff4e4b4b453",
+    "paper/PREREG.md": "8f1c8af338daee5ae8295d8d3ecd19824ef1029846f3c390bc2551a340ee4d64",
+    "paper/scripts/run.mjs": "7d4452b4a9bbfe47b7c7bab71272dada049d954dddbdd7cfccb0bb87128a6f77",
+    "paper/template/stats.mjs": "05f32655ef8503e62e4f5aa54caacdd7a4f6f3be4920871170de57142da8256f"
+  },
+  "run_hash": "0012fe3c6c89b3525336902e1e558a6d69d0f43b90ad5203583b4c95ffc3f695"
+}

@@ -1,0 +1,28 @@
+\newcommand{\PaperTitle}{Benchmark Payment Delegation: Policy Compliance and Useful Action in a Simulated Ledger}
+\newcommand{\PaperOrcid}{0009-0005-9964-6841}
+\newcommand{\PaperAbstract}{Delegated payment agents must complete permitted work while respecting spending limits and owner authority. We present a synthetic ledger benchmark with 40 public episodes across 22 scenario templates. Native replay separates task success, ledger goal completion, and policy violations. Scripted reference success is 100.0\% [91.2, 100.0] for the good policy and 0.0\% [0.0, 8.8] for the bad policy. A constant OK response still scores 40.0\% [26.3, 55.4], exposing weak evidence of informed refusal. Removing owner calls reduces success to 90.0\% [76.9, 96.0]. A simulated population sweep varies selection between reference scripts and measures scoring sensitivity. All intervals are 95\%; reference rates use Wilson intervals, and the simulated sweep resamples agent means. These results validate execution and expose scoring limits; they do not measure learned models, payment security in deployment, or human judgment.}
+\newcommand{\TaskCount}{40}
+\newcommand{\ScenarioCount}{22}
+\newcommand{\EpisodeCount}{8640}
+\newcommand{\ConditionCount}{108}
+\newcommand{\PolicyCount}{8}
+\newcommand{\CILevel}{95}
+\newcommand{\BootstrapDraws}{2000}
+\newcommand{\AgentCount}{20}
+\newcommand{\GoodSuccess}{100.0\% [91.2, 100.0]}
+\newcommand{\BadSuccess}{0.0\% [0.0, 8.8]}
+\newcommand{\ConstantSuccess}{40.0\% [26.3, 55.4]}
+\newcommand{\ConstantDecline}{88.9\% [67.2, 96.9]}
+\newcommand{\ConstantAction}{0.0\% [0.0, 14.9]}
+\newcommand{\BadViolation}{90.0\% [76.9, 96.0]}
+\newcommand{\BadGoal}{55.0\% [39.8, 69.3]}
+\newcommand{\EmptyGoal}{45.0\% [30.7, 60.2]}
+\newcommand{\EmptySuccess}{0.0\% [0.0, 8.8]}
+\newcommand{\AblationSuccess}{90.0\% [76.9, 96.0]}
+\newcommand{\AblationViolation}{5.0\% [1.4, 16.5]}
+\newcommand{\AblationDifference}{10.0 [0.0, 25.0]}
+\newcommand{\GoodBadDifference}{100.0 [100.0, 100.0]}
+\newcommand{\MidSuccess}{48.2\% [44.5, 52.0]}
+\newcommand{\MidViolation}{47.3\% [44.0, 50.4]}
+\newcommand{\MidGoal}{77.8\% [75.4, 80.3]}
+\newcommand{\ChangedCount}{4}
