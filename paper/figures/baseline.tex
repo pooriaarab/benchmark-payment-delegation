@@ -1,0 +1,6 @@
+\begin{figure}[ht]\centering
+\begin{tikzpicture}\begin{axis}[ymin=0,ymax=1.05,ylabel={Episode proportion},xtick={0,1,2,3,4,5,6,7},xticklabels={empty,constant,echo,refuse,first-tool,good,bad,no-owner},x tick label style={rotate=30,anchor=east},legend style={at={(0.5,1.22)},anchor=south,legend columns=2}]
+\addplot[okblue,mark=*,error bars/.cd,y dir=both,y explicit] table[x=x,y=success,y error minus=slow,y error plus=shigh,col sep=comma]{data/baseline.generated.csv};\addlegendentry{Success}
+\addplot[okorange,mark=square*,error bars/.cd,y dir=both,y explicit] table[x=x,y=violation,y error minus=vlow,y error plus=vhigh,col sep=comma]{data/baseline.generated.csv};\addlegendentry{Any violation}
+\end{axis}\end{tikzpicture}
+\caption{Scripted controls separate successful action from policy violations. Constant and refusal controls earn the same partial credit. Bars show task-level Wilson intervals; scenario-cluster estimates appear in Table~\ref{tab:cluster}. Lines only connect display positions.}\label{fig:baseline}\end{figure}

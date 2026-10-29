@@ -17,3 +17,12 @@ keywords:
   - llm-evaluation
   - agent-evaluation
   - deterministic-grader
+preferred-citation:
+  type: report
+  title: "Benchmark Payment Delegation: Policy Compliance and Useful Action in a Simulated Ledger"
+  authors:
+    - family-names: Arab
+      given-names: Pooria
+      orcid: "https://orcid.org/0009-0005-9964-6841"
+  year: 2026
+  url: "https://github.com/pooriaarab/benchmark-payment-delegation/tree/main/paper"

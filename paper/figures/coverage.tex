@@ -1,0 +1,5 @@
+\begin{figure}[ht]\centering
+\begin{tikzpicture}\begin{axis}[coverage labels,ybar,ymin=0,ylabel={Public episodes},xlabel={Required goal},nodes near coords,bar width=22pt]
+\addplot[fill=okblue] table[x=x,y=n,col sep=comma]{data/coverage.generated.csv};
+\end{axis}\end{tikzpicture}
+\caption{Coverage is uneven across goal types. These are fixed corpus counts, not estimated population rates. A decline-heavy corpus can reward inaction unless useful action is reported separately.}\label{fig:coverage}\end{figure}

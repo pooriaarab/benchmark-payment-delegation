@@ -1,0 +1,14 @@
+{
+  "title": "Benchmark Payment Delegation: Policy Compliance and Useful Action in a Simulated Ledger",
+  "orcid": "https://orcid.org/0009-0005-9964-6841",
+  "keywords": [
+    "payment delegation",
+    "policy compliance",
+    "ledger replay",
+    "simulated agents",
+    "evaluation"
+  ],
+  "code_url": "https://github.com/pooriaarab/benchmark-payment-delegation",
+  "artifact_name": "payment-delegation-paper.pdf",
+  "source_commit": "ba184ffd6deccddd5640eb6f1f76f5997338bc00"
+}
