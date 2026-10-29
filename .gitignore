@@ -5,3 +5,10 @@ artifacts/
 .hidden/
 scripts/hidden-world.json
 data/tasks-hidden.jsonl
+paper/*.pdf
+paper/*.log
+paper/*.blg
+paper/*.aux
+paper/*.bbl
+paper/.style.zip
+paper/neurips_2026.sty
